@@ -447,7 +447,7 @@ export default function Home() {
       <div className="absolute inset-0 z-0 bg-grid-pattern opacity-50 pointer-events-none" />
 
       {/* FULL SCREEN BACKGROUND CHART */}
-      <div className="absolute inset-0 z-0 pt-[20vh] pointer-events-none opacity-40">
+      <div className="absolute top-0 bottom-0 left-0 w-[95%] z-0 pt-[20vh] pointer-events-none opacity-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: -10 }}>
             <XAxis dataKey="time" hide />
