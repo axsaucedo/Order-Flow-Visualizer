@@ -51,7 +51,7 @@ export default function Home() {
   // --- STATE ---
   const [isPlaying, setIsPlaying] = useState(false);
   const [ratePerMinute, setRatePerMinute] = useState(300); 
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
   
   // Metrics State
   const [currentRPM, setCurrentRPM] = useState(0);
