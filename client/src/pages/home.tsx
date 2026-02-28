@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Line, LineChart, ResponsiveContainer, XAxis, Tooltip, YAxis, CartesianGrid } from "recharts";
-import { Play, Pause, Settings2, ShoppingBag, Shirt, Glasses, Watch, Gamepad, Volume2, VolumeX, Flame, Zap, Trophy, DollarSign } from "lucide-react";
+import { Play, Pause, ShoppingBag, Shirt, Glasses, Watch, Gamepad, Volume2, VolumeX, Flame, Zap, Trophy, DollarSign, Activity, TrendingUp, BarChart3, Tag } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 
@@ -23,21 +23,27 @@ type DataPoint = {
   volume: number;
 };
 
-// Retail Categories Configuration
+// Cyberweek Categories Configuration
 const CATEGORIES: Record<Category, { icon: React.ReactNode, color: string, label: string, priceRange: [number, number] }> = {
-  shoes: { icon: <ShoppingBag size={20} />, color: "#3b82f6", label: "Footwear", priceRange: [50, 250] },
-  shirts: { icon: <Shirt size={20} />, color: "#8b5cf6", label: "Apparel", priceRange: [20, 80] },
-  electronics: { icon: <Gamepad size={20} />, color: "#10b981", label: "Tech", priceRange: [100, 1500] },
-  accessories: { icon: <Glasses size={20} />, color: "#f59e0b", label: "Accessories", priceRange: [15, 100] },
-  pants: { icon: <Watch size={20} />, color: "#ef4444", label: "Watches", priceRange: [150, 500] },
+  shoes: { icon: <ShoppingBag size={24} />, color: "#3b82f6", label: "Footwear", priceRange: [50, 250] },
+  shirts: { icon: <Shirt size={24} />, color: "#8b5cf6", label: "Apparel", priceRange: [20, 80] },
+  electronics: { icon: <Gamepad size={24} />, color: "#10b981", label: "Tech", priceRange: [100, 1500] },
+  accessories: { icon: <Glasses size={24} />, color: "#f59e0b", label: "Accessories", priceRange: [15, 100] },
+  pants: { icon: <Watch size={24} />, color: "#ef4444", label: "Watches", priceRange: [150, 500] },
 };
 
+// Expanded Tiers for a long-running event
 const TIERS = [
-  { name: "Stable", min: 0, decayRate: 1, multiplier: 1, color: "var(--foreground)" },
-  { name: "Heating Up", min: 10, decayRate: 2, multiplier: 2, color: "#3b82f6" },
-  { name: "On Fire", min: 35, decayRate: 4, multiplier: 5, color: "#f59e0b" },
-  { name: "Unstoppable", min: 100, decayRate: 8, multiplier: 10, color: "#ef4444" },
-  { name: "Godlike", min: 250, decayRate: 15, multiplier: 25, color: "#8b5cf6" },
+  { name: "Warming Up", min: 0, decayRate: 0.5, multiplier: 1, color: "var(--foreground)" },
+  { name: "Getting Busy", min: 10, decayRate: 1, multiplier: 2, color: "#3b82f6" },
+  { name: "Rush Hour", min: 50, decayRate: 2, multiplier: 3, color: "#0ea5e9" },
+  { name: "Surge", min: 100, decayRate: 4, multiplier: 5, color: "#10b981" },
+  { name: "Cyber Flash", min: 250, decayRate: 8, multiplier: 10, color: "#eab308" },
+  { name: "On Fire", min: 500, decayRate: 15, multiplier: 15, color: "#f97316" },
+  { name: "Unstoppable", min: 1000, decayRate: 25, multiplier: 25, color: "#ef4444" },
+  { name: "Godlike", min: 2500, decayRate: 40, multiplier: 50, color: "#d946ef" },
+  { name: "Retail Singularity", min: 5000, decayRate: 60, multiplier: 100, color: "#8b5cf6" },
+  { name: "Apex", min: 10000, decayRate: 100, multiplier: 250, color: "#ec4899" },
 ];
 
 export default function Home() {
@@ -48,6 +54,9 @@ export default function Home() {
   
   // Metrics State
   const [currentRPM, setCurrentRPM] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [peakRPM, setPeakRPM] = useState(0);
   
   // Power Mode State
   const [combo, setCombo] = useState(0);
@@ -56,13 +65,15 @@ export default function Home() {
   
   const [maxCombo, setMaxCombo] = useState(0);
   const [maxTierIdx, setMaxTierIdx] = useState(0);
-  const [showTierUp, setShowTierUp] = useState<{name: string, color: string, timestamp: number} | null>(null);
+  
+  // Array of active milestones/notifications to prevent overlapping blocks
+  const [notifications, setNotifications] = useState<{id: string, text: string, subtext: string, color: string}[]>([]);
 
   // Data State
   const [items, setItems] = useState<Order[]>([]);
   const [moneyParticles, setMoneyParticles] = useState<{id: string, x: number, y: number, text: string, color: string}[]>([]);
   const [chartData, setChartData] = useState<DataPoint[]>(
-    Array.from({ length: 40 }, (_, i) => ({ time: `-${40 - i}s`, volume: 0 }))
+    Array.from({ length: 50 }, (_, i) => ({ time: `-${50 - i}s`, volume: 0 }))
   );
   
   // Refs for loop management
@@ -74,7 +85,10 @@ export default function Home() {
     currentVolume: 0,
     audioEnabled,
     currentTierIdx,
-    items
+    items,
+    peakRPM,
+    totalOrders,
+    totalRevenue
   });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -84,9 +98,10 @@ export default function Home() {
     stateRef.current = { 
       isPlaying, ratePerMinute, combo, comboTimer, 
       currentVolume: stateRef.current.currentVolume, 
-      audioEnabled, currentTierIdx, items 
+      audioEnabled, currentTierIdx, items,
+      peakRPM, totalOrders, totalRevenue
     };
-  }, [isPlaying, ratePerMinute, combo, comboTimer, audioEnabled, currentTierIdx, items]);
+  }, [isPlaying, ratePerMinute, combo, comboTimer, audioEnabled, currentTierIdx, items, peakRPM, totalOrders, totalRevenue]);
 
   // --- AUDIO SYNTHESIS ---
   const playSound = useCallback((type: 'coin' | 'tier_up' | 'break') => {
@@ -109,47 +124,46 @@ export default function Home() {
       const now = ctx.currentTime;
       
       if (type === 'coin') {
-        // Metallic ka-ching / coin sound
         osc.type = 'sine';
         osc.frequency.setValueAtTime(1500 + Math.random() * 500, now);
         osc.frequency.exponentialRampToValueAtTime(3000, now + 0.1);
-        
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+        gain.gain.linearRampToValueAtTime(0.05, now + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        
         osc.start(now);
         osc.stop(now + 0.15);
       } else if (type === 'tier_up') {
-        // Glorious fanfare
         osc.type = 'square';
         osc.frequency.setValueAtTime(440, now);
         osc.frequency.setValueAtTime(554.37, now + 0.1); // C#
         osc.frequency.setValueAtTime(659.25, now + 0.2); // E
         osc.frequency.setValueAtTime(880, now + 0.3); // A
-        
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
-        gain.gain.setValueAtTime(0.15, now + 0.3);
+        gain.gain.linearRampToValueAtTime(0.1, now + 0.05);
+        gain.gain.setValueAtTime(0.1, now + 0.3);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-        
         osc.start(now);
         osc.stop(now + 0.6);
       } else if (type === 'break') {
-        // Dull thud
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, now);
         osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
-        
-        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        
         osc.start(now);
         osc.stop(now + 0.3);
       }
     } catch (e) {
       console.error("Audio playback failed", e);
     }
+  }, []);
+
+  const addNotification = useCallback((text: string, subtext: string, color: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setNotifications(prev => [...prev.slice(-4), { id, text, subtext, color }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
   }, []);
 
   // --- LOGIC: COMBO DECAY & TIER EVALUATION ---
@@ -165,9 +179,6 @@ export default function Home() {
         if (stateRef.current.comboTimer > 0) {
           const tier = TIERS[stateRef.current.currentTierIdx];
           
-          // Decrease timer based on tier decay rate.
-          // Higher tiers decay much faster, requiring more orders to sustain.
-          // Time delta is used to keep it frame-rate independent.
           const decayAmount = (tier.decayRate * deltaTime) / 16; 
           const newTimer = Math.max(0, stateRef.current.comboTimer - decayAmount);
           
@@ -176,6 +187,7 @@ export default function Home() {
           if (newTimer === 0) {
             if (stateRef.current.combo > TIERS[1].min) {
               playSound('break');
+              addNotification("Streak Lost", `Ended at ${stateRef.current.combo}x`, "var(--color-muted-foreground)");
             }
             setCombo(0);
             setCurrentTierIdx(0);
@@ -187,7 +199,7 @@ export default function Home() {
 
     animationFrameId = requestAnimationFrame(decayLoop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [playSound]);
+  }, [playSound, addNotification]);
 
   // Check tiers
   useEffect(() => {
@@ -200,27 +212,24 @@ export default function Home() {
     }
 
     if (newTierIdx > currentTierIdx) {
-      // Tier Up!
       setCurrentTierIdx(newTierIdx);
-      setShowTierUp({
-        name: TIERS[newTierIdx].name,
-        color: TIERS[newTierIdx].color,
-        timestamp: Date.now()
-      });
-      playSound('tier_up');
+      if (newTierIdx > 0) {
+        addNotification("Tier Up!", TIERS[newTierIdx].name, TIERS[newTierIdx].color);
+        playSound('tier_up');
+      }
       
       if (newTierIdx > maxTierIdx) {
         setMaxTierIdx(newTierIdx);
       }
     } else if (newTierIdx < currentTierIdx) {
-      // Combo broke/dropped
+      // Combo broke/dropped is handled by the timer reaching 0. 
       setCurrentTierIdx(newTierIdx);
     }
 
     if (combo > maxCombo) {
       setMaxCombo(combo);
     }
-  }, [combo, currentTierIdx, maxCombo, maxTierIdx, playSound]);
+  }, [combo, currentTierIdx, maxCombo, maxTierIdx, playSound, addNotification]);
 
   // --- LOGIC: MAIN SIMULATION LOOP ---
   useEffect(() => {
@@ -264,21 +273,20 @@ export default function Home() {
       if (stateRef.current.isPlaying) {
         setItems(prevItems => {
           return prevItems.map(item => {
-            // Float up and drift horizontally
-            const speedMultiplier = 1 + (stateRef.current.currentTierIdx * 0.2);
+            const speedMultiplier = 1 + (stateRef.current.currentTierIdx * 0.1);
             return {
               ...item,
-              y: item.y - (0.2 * speedMultiplier * (deltaTime / 16)), // Move UP (y decreasing towards 0)
+              y: item.y - (0.3 * speedMultiplier * (deltaTime / 16)), // Move UP
               x: item.x + (item.vx * (deltaTime / 16))
             };
-          }).filter(item => item.y > -20); // Remove when off top of screen
+          }).filter(item => item.y > -10); // Remove when off top of screen
         });
         
         setMoneyParticles(prev => {
            return prev.map(p => ({
              ...p,
-             y: p.y - (0.3 * (deltaTime / 16))
-           })).filter(p => p.y > -20);
+             y: p.y - (0.4 * (deltaTime / 16))
+           })).filter(p => p.y > -10);
         });
       }
       animationFrameId = requestAnimationFrame(moveLoop);
@@ -299,9 +307,13 @@ export default function Home() {
       history.push(vol);
       if (history.length > 5) history.shift();
       
-      // Calculate current RPM based on a rolling average of the last 5 seconds to smooth it out
       const avgVolPerSec = history.reduce((a, b) => a + b, 0) / history.length;
-      setCurrentRPM(Math.round(avgVolPerSec * 60));
+      const newRPM = Math.round(avgVolPerSec * 60);
+      setCurrentRPM(newRPM);
+      
+      if (newRPM > stateRef.current.peakRPM) {
+        setPeakRPM(newRPM);
+      }
 
       setChartData(prev => {
         const newData = [...prev.slice(1)];
@@ -325,12 +337,11 @@ export default function Home() {
     
     const value = Math.floor(Math.random() * (config.priceRange[1] - config.priceRange[0])) + config.priceRange[0];
     
-    // Spawn from the right edge of the chart (representing "now")
-    // Let's set spawn point around x: 80% to 90%, and y: bottom to middle
-    const x = 85 + (Math.random() * 5 - 2.5); 
-    const y = 80 + (Math.random() * 10);
-    // Drift leftwards and slightly upwards
-    const vx = -0.1 - (Math.random() * 0.2);
+    // Spawn from the right edge, spreading out.
+    // X goes from ~80% to 95%, Y goes from 60% to 90% (bottom part of the chart)
+    const x = 85 + (Math.random() * 10 - 5); 
+    const y = 70 + (Math.random() * 20);
+    const vx = -0.1 - (Math.random() * 0.3); // Drift left
     
     const id = Math.random().toString(36).substr(2, 9);
     
@@ -343,21 +354,26 @@ export default function Home() {
     const tier = TIERS[stateRef.current.currentTierIdx];
     
     setCombo(c => c + tier.multiplier);
-    setComboTimer(100); // Reset timer to full
-
-    // Add item to float up
-    setItems(prev => [...prev.slice(-100), newOrder]); 
+    setComboTimer(100); 
     
-    // Add money particle occasionally or always
-    setMoneyParticles(prev => [...prev.slice(-50), {
+    // Global metrics
+    setTotalOrders(o => o + 1);
+    setTotalRevenue(r => r + value);
+
+    // Limit on-screen elements to prevent lag
+    setItems(prev => [...prev.slice(-60), newOrder]); 
+    setMoneyParticles(prev => [...prev.slice(-40), {
       id: `money-${id}`,
-      x: x + (Math.random() * 10 - 5),
-      y: y,
+      x: x + (Math.random() * 6 - 3),
+      y: y - 5, // slightly above the icon
       text: `+$${value}`,
       color: config.color
     }]);
     
-    playSound('coin');
+    // Throttle sound at very high rates
+    if (Math.random() > 0.5 || stateRef.current.ratePerMinute < 500) {
+      playSound('coin');
+    }
   };
 
   // --- RENDER HELPERS ---
@@ -366,41 +382,62 @@ export default function Home() {
   return (
     <div className="relative h-screen w-full bg-background text-foreground flex flex-col font-sans overflow-hidden">
       
-      {/* BACKGROUND / STRUCTURE */}
-      <div className="absolute inset-0 z-0 bg-grid-pattern opacity-50" />
+      {/* BACKGROUND GRID */}
+      <div className="absolute inset-0 z-0 bg-grid-pattern opacity-50 pointer-events-none" />
 
-      {/* FLOATING ITEMS & PARTICLES LAYER */}
+      {/* FULL SCREEN BACKGROUND CHART */}
+      <div className="absolute inset-0 z-0 pt-[20vh] pointer-events-none opacity-30">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: -10 }}>
+            <XAxis dataKey="time" hide />
+            <YAxis hide domain={['dataMin', 'dataMax + 10']} />
+            <Line 
+              type="monotone" 
+              dataKey="volume" 
+              stroke="var(--color-primary)" 
+              strokeWidth={5}
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* FLOATING ITEMS & PARTICLES LAYER (Above chart, behind UI) */}
       <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-        {items.map(item => {
-          const config = CATEGORIES[item.category];
-          return (
-            <motion.div
-              key={item.id}
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute flex items-center justify-center"
-              style={{
-                left: `${item.x}%`,
-                top: `${item.y}%`, // Use top since y goes from 80 down to 0
-                transform: 'translate(-50%, -50%)',
-                color: config.color
-              }}
-            >
-              <div className="relative w-12 h-12 bg-card border border-border shadow-lg rounded-xl flex items-center justify-center z-10">
+        <AnimatePresence>
+          {items.map(item => {
+            const config = CATEGORIES[item.category];
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ scale: 0, opacity: 0, rotate: -20 }}
+                animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="absolute flex items-center justify-center backdrop-blur-md rounded-xl shadow-lg border p-3"
+                style={{
+                  left: `${item.x}%`,
+                  top: `${item.y}%`, 
+                  transform: 'translate(-50%, -50%)',
+                  color: config.color,
+                  borderColor: `${config.color}40`,
+                  backgroundColor: 'var(--color-card)',
+                }}
+              >
                 {config.icon}
-              </div>
-            </motion.div>
-          );
-        })}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
         
         {moneyParticles.map(p => (
            <motion.div
              key={p.id}
              initial={{ opacity: 0, y: 10, scale: 0.5 }}
-             animate={{ opacity: [0, 1, 0], y: -50, scale: 1 }}
+             animate={{ opacity: [0, 1, 0], y: -80, scale: 1.2 }}
              transition={{ duration: 1.5, ease: "easeOut" }}
-             className="absolute font-bold font-mono text-lg z-20 drop-shadow-md"
+             className="absolute font-bold font-mono text-xl z-20 drop-shadow-md"
              style={{
                left: `${p.x}%`,
                top: `${p.y}%`,
@@ -411,69 +448,44 @@ export default function Home() {
            </motion.div>
         ))}
 
-        {/* TIER UP ANIMATION OVERLAY */}
-        <AnimatePresence>
-          {showTierUp && (
-            <motion.div
-              key={showTierUp.timestamp}
-              initial={{ opacity: 0, scale: 0.5, y: 50 }}
-              animate={{ opacity: [0, 1, 1, 0], scale: [0.5, 1.2, 1, 1.5], y: [50, 0, 0, -50] }}
-              transition={{ duration: 2, times: [0, 0.2, 0.8, 1] }}
-              className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none"
-            >
-              <div className="text-center">
-                <h2 className="text-4xl md:text-7xl font-black uppercase tracking-widest" style={{ color: showTierUp.color, textShadow: `0 0 20px ${showTierUp.color}` }}>
-                  {showTierUp.name}
-                </h2>
-                <p className="text-xl md:text-3xl text-muted-foreground font-bold mt-2 tracking-widest uppercase">
-                  Tier Reached!
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* NOTIFICATIONS FEED (Top Center) */}
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
+          <AnimatePresence>
+            {notifications.map((notif) => (
+              <motion.div
+                key={notif.id}
+                initial={{ opacity: 0, y: -20, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.8 }}
+                className="bg-card/90 backdrop-blur-xl border border-border shadow-xl rounded-2xl px-6 py-3 flex flex-col items-center"
+                style={{ borderBottomColor: notif.color, borderBottomWidth: 3 }}
+              >
+                <div className="font-black text-xl tracking-widest uppercase" style={{ color: notif.color }}>
+                  {notif.text}
+                </div>
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                  {notif.subtext}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* TOP HEADER - METRICS */}
+      {/* TOP HEADER */}
       <header className="relative z-30 p-6 flex items-start justify-between pointer-events-none">
-        <div className="flex gap-8 pointer-events-auto">
-          {/* Main Logo/Title */}
-          <div className="flex flex-col">
-            <h1 className="font-black text-2xl tracking-tighter uppercase flex items-center gap-2">
-              <ActivityIcon /> Nexus Retail
-            </h1>
-            <span className="text-sm text-muted-foreground uppercase font-semibold tracking-wider flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Order Stream
-            </span>
-          </div>
-
-          {/* RPM Metric */}
-          <div className="bg-card/80 backdrop-blur-md border border-border shadow-sm rounded-xl p-4 flex flex-col min-w-[160px]">
-            <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold mb-1">Current Velocity</span>
-            <div className="flex items-baseline gap-1">
-              <span className="font-black text-4xl tabular-nums leading-none">{currentRPM}</span>
-              <span className="text-sm text-muted-foreground font-bold">RPM</span>
-            </div>
-          </div>
-          
-          {/* Max Stats */}
-          <div className="bg-card/80 backdrop-blur-md border border-border shadow-sm rounded-xl p-4 flex flex-col min-w-[160px]">
-            <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold mb-1 flex items-center gap-1">
-              <Trophy size={14} /> Best Run
-            </span>
-            <div className="flex flex-col gap-1">
-              <div className="font-black text-2xl tabular-nums leading-none flex items-baseline gap-1">
-                {maxCombo} <span className="text-sm text-muted-foreground font-bold">PTS</span>
-              </div>
-              <div className="text-xs font-bold uppercase" style={{ color: TIERS[maxTierIdx]?.color || 'inherit' }}>
-                Tier: {TIERS[maxTierIdx]?.name || 'Stable'}
-              </div>
-            </div>
-          </div>
+        {/* Left Branding */}
+        <div className="flex flex-col bg-card/60 backdrop-blur-md p-4 rounded-2xl border border-border shadow-sm pointer-events-auto">
+          <h1 className="font-black text-3xl tracking-tighter uppercase flex items-center gap-3">
+            <Tag className="text-primary" size={28} /> Cyberweek Panel
+          </h1>
+          <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-2 mt-1">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Order Stream
+          </span>
         </div>
 
-        {/* CONTROLS */}
-        <div className="flex items-center gap-4 bg-card/80 backdrop-blur-md border border-border shadow-sm rounded-xl p-3 pointer-events-auto">
+        {/* Right Controls */}
+        <div className="flex items-center gap-4 bg-card/80 backdrop-blur-md border border-border shadow-sm rounded-2xl p-3 pointer-events-auto">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -481,150 +493,172 @@ export default function Home() {
             className={audioEnabled ? "text-primary" : "text-muted-foreground"}
             title="Toggle Audio"
           >
-            {audioEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </Button>
           
-          <div className="w-px h-8 bg-border" />
+          <div className="w-px h-10 bg-border" />
 
-          <div className="flex flex-col gap-1.5 w-48 px-2">
+          <div className="flex flex-col gap-2 w-56 px-4">
             <div className="flex justify-between text-xs text-muted-foreground uppercase tracking-wider font-bold">
-              <span>Sim Rate</span>
-              <span className="text-foreground">{ratePerMinute} /min</span>
+              <span>Simulation Rate</span>
+              <span className="text-foreground">{ratePerMinute} RPM</span>
             </div>
             <Slider 
               value={[ratePerMinute]} 
               min={10} 
-              max={5000} 
-              step={10}
+              max={10000} 
+              step={50}
               onValueChange={(v) => setRatePerMinute(v[0])}
               className="cursor-pointer"
             />
           </div>
 
-          <div className="w-px h-8 bg-border" />
+          <div className="w-px h-10 bg-border" />
 
           <Button 
             onClick={() => setIsPlaying(!isPlaying)}
             size="lg"
-            className={`w-32 uppercase tracking-widest font-bold transition-all ${isPlaying ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}
+            className={`w-36 h-12 text-lg uppercase tracking-widest font-black transition-all ${isPlaying ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}
           >
             {isPlaying ? (
-              <><Pause className="mr-2" size={18} /> Pause</>
+              <><Pause className="mr-2" size={20} /> Pause</>
             ) : (
-              <><Play className="mr-2" size={18} /> Start</>
+              <><Play className="mr-2" size={20} /> Start</>
             )}
           </Button>
         </div>
       </header>
 
-      {/* MAIN COMBO CENTER */}
-      <div className="relative z-30 flex-1 flex flex-col items-center justify-center pointer-events-none">
-        <AnimatePresence mode="popLayout">
-          {combo > 0 && (
-            <motion.div
-              key="combo-display"
-              initial={{ scale: 0.8, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, filter: "blur(10px)" }}
-              className="flex flex-col items-center"
-            >
-              {/* Tier Name */}
-              <motion.div 
-                key={activeTier.name}
-                initial={{ y: 10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="text-lg md:text-2xl font-black uppercase tracking-[0.3em] mb-2 flex items-center gap-2"
-                style={{ color: activeTier.color }}
+      {/* SIDE PANELS (Separated from Center) */}
+      <div className="relative z-30 flex-1 flex justify-between p-6 pointer-events-none mt-12">
+        
+        {/* LEFT PANEL: ACTIVE COMBO */}
+        <div className="w-80 flex flex-col justify-start">
+          <AnimatePresence mode="popLayout">
+            {combo > 0 && (
+              <motion.div
+                key="combo-sidebar"
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                className="bg-card/70 backdrop-blur-xl border border-border shadow-2xl rounded-3xl p-6 flex flex-col items-start relative overflow-hidden"
               >
-                <Flame className={currentTierIdx >= 2 ? "animate-pulse" : ""} />
-                {activeTier.name}
-                <Flame className={currentTierIdx >= 2 ? "animate-pulse" : ""} />
-              </motion.div>
-              
-              {/* Combo Number */}
-              <motion.div 
-                key={combo}
-                initial={{ scale: 1.1 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                className="font-black text-8xl md:text-[12rem] leading-none tracking-tighter drop-shadow-xl"
-                style={{ color: activeTier.color }}
-              >
-                {combo}
-              </motion.div>
-              
-              <div className="text-xl text-muted-foreground font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-                Multiplier: {activeTier.multiplier}x
-              </div>
-
-              {/* Advanced Combo Bar */}
-              <div className="w-[300px] md:w-[500px] h-4 bg-muted rounded-full mt-6 overflow-hidden relative border-2 border-border shadow-inner">
+                {/* Background glow for tier */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundColor: activeTier.color }} />
+                
+                <div className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">
+                  Current Streak
+                </div>
+                
                 <motion.div 
-                  className="absolute top-0 left-0 bottom-0"
-                  style={{ 
-                    width: `${comboTimer}%`,
-                    backgroundColor: activeTier.color,
-                    boxShadow: `0 0 10px ${activeTier.color}`
-                  }}
-                  transition={{ duration: 0.05, ease: "linear" }} // Fast update for smooth bar
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+                  key={combo}
+                  initial={{ scale: 1.05 }}
+                  animate={{ scale: 1 }}
+                  className="font-black text-7xl tracking-tighter leading-none mb-2"
+                  style={{ color: activeTier.color }}
+                >
+                  {combo}<span className="text-3xl text-muted-foreground ml-1">x</span>
+                </motion.div>
 
-      {/* BOTTOM CHART AREA */}
-      <div className="relative z-20 h-[30vh] w-full mt-auto border-t border-border bg-card/30 backdrop-blur-sm pt-4">
-        {/* Spawn Indicator on the right edge */}
-        <div className="absolute right-[5%] top-0 bottom-0 w-[2px] bg-primary/20 border-r border-dashed border-primary/50 z-0">
-          <div className="absolute top-2 -left-24 text-xs font-mono text-primary uppercase tracking-widest bg-background/80 px-2 py-1 rounded">
-            Live Input &rarr;
-          </div>
+                <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-sm mb-6" style={{ color: activeTier.color }}>
+                  <Flame size={16} /> {activeTier.name} ({activeTier.multiplier}x)
+                </div>
+
+                {/* Combo Timer Bar */}
+                <div className="w-full h-3 bg-muted/50 rounded-full overflow-hidden relative shadow-inner">
+                  <motion.div 
+                    className="absolute top-0 left-0 bottom-0"
+                    style={{ 
+                      width: `${comboTimer}%`,
+                      backgroundColor: activeTier.color,
+                    }}
+                    transition={{ duration: 0.05, ease: "linear" }}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 20, right: 50, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.5} />
-            <XAxis dataKey="time" hide />
-            <YAxis hide domain={['dataMin - 5', 'dataMax + 5']} />
-            <Tooltip 
-              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-              itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
-              labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
-              cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
+        {/* RIGHT PANEL: GLOBAL METRICS */}
+        <div className="w-80 flex flex-col gap-4 pointer-events-auto">
+          
+          <MetricCard 
+            title="Real-Time Velocity" 
+            value={currentRPM} 
+            suffix="RPM" 
+            icon={<Activity className="text-primary" />} 
+            glow="var(--color-primary)"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <MetricCard 
+              title="Orders" 
+              value={totalOrders.toLocaleString()} 
+              icon={<ShoppingBag className="text-muted-foreground" size={16} />} 
+              small
             />
-            <Line 
-              type="monotone" 
-              dataKey="volume" 
-              stroke="var(--color-primary)" 
-              strokeWidth={4}
-              dot={false}
-              activeDot={{ r: 8, fill: 'var(--color-primary)', stroke: 'hsl(var(--background))', strokeWidth: 2 }}
-              isAnimationActive={false}
+            <MetricCard 
+              title="Revenue" 
+              value={`$${(totalRevenue / 1000).toFixed(1)}k`} 
+              icon={<DollarSign className="text-muted-foreground" size={16} />} 
+              small
             />
-          </LineChart>
-        </ResponsiveContainer>
+          </div>
+
+          <div className="bg-card/70 backdrop-blur-xl border border-border shadow-xl rounded-2xl p-5 mt-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
+              <Trophy size={14} /> Session Peaks
+            </h3>
+            
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Velocity</div>
+                <div className="font-black text-2xl">{peakRPM} <span className="text-sm font-bold text-muted-foreground">RPM</span></div>
+              </div>
+              
+              <div>
+                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Best Streak</div>
+                <div className="font-black text-2xl flex items-baseline gap-2">
+                  {maxCombo} <span className="text-sm font-bold text-muted-foreground">x</span>
+                </div>
+                {maxTierIdx > 0 && (
+                  <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: TIERS[maxTierIdx].color }}>
+                    Tier: {TIERS[maxTierIdx].name}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
       </div>
+
+      {/* Spawn Indicator on the right edge */}
+      <div className="absolute right-[5%] bottom-[10%] h-[50vh] w-[2px] bg-primary/20 border-r border-dashed border-primary/50 pointer-events-none z-0">
+        <div className="absolute top-1/2 -translate-y-1/2 -left-28 text-[10px] font-bold text-primary uppercase tracking-widest bg-background/80 px-2 py-1 rounded border border-primary/20">
+          Live Input &rarr;
+        </div>
+      </div>
+      
     </div>
   );
 }
 
-function ActivityIcon(props: any) {
+// Sub-component for clean metric cards
+function MetricCard({ title, value, suffix, icon, glow, small }: { title: string, value: string | number, suffix?: string, icon?: React.ReactNode, glow?: string, small?: boolean }) {
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </svg>
+    <div className={`bg-card/70 backdrop-blur-xl border border-border shadow-xl rounded-2xl ${small ? 'p-4' : 'p-6'} flex flex-col relative overflow-hidden`}>
+      {glow && <div className="absolute top-0 right-0 w-32 h-32 opacity-10 blur-2xl rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ backgroundColor: glow }} />}
+      
+      <div className={`font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 ${small ? 'text-[10px] mb-2' : 'text-xs mb-3'}`}>
+        {icon} {title}
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className={`font-black tracking-tight ${small ? 'text-2xl' : 'text-5xl'}`}>{value}</span>
+        {suffix && <span className="text-sm font-bold text-muted-foreground ml-1">{suffix}</span>}
+      </div>
+    </div>
   );
 }
