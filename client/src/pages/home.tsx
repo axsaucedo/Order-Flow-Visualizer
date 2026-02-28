@@ -529,60 +529,11 @@ export default function Home() {
         </div>
       </header>
 
-      {/* SIDE PANELS (Separated from Center) */}
-      <div className="relative z-30 flex-1 flex justify-between p-6 pointer-events-none mt-12">
+      {/* SIDE PANELS (All placed on the left now) */}
+      <div className="relative z-30 flex-1 flex flex-col justify-start gap-4 p-6 pointer-events-none mt-4 w-96">
         
-        {/* LEFT PANEL: ACTIVE COMBO */}
-        <div className="w-80 flex flex-col justify-start">
-          <AnimatePresence mode="popLayout">
-            {combo > 0 && (
-              <motion.div
-                key="combo-sidebar"
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                className="bg-card/70 backdrop-blur-xl border border-border shadow-2xl rounded-3xl p-6 flex flex-col items-start relative overflow-hidden"
-              >
-                {/* Background glow for tier */}
-                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundColor: activeTier.color }} />
-                
-                <div className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">
-                  Current Streak
-                </div>
-                
-                <motion.div 
-                  key={combo}
-                  initial={{ scale: 1.05 }}
-                  animate={{ scale: 1 }}
-                  className="font-black text-7xl tracking-tighter leading-none mb-2"
-                  style={{ color: activeTier.color }}
-                >
-                  {combo}<span className="text-3xl text-muted-foreground ml-1">x</span>
-                </motion.div>
-
-                <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-sm mb-6" style={{ color: activeTier.color }}>
-                  <Flame size={16} /> {activeTier.name} ({activeTier.multiplier}x)
-                </div>
-
-                {/* Combo Timer Bar */}
-                <div className="w-full h-3 bg-muted/50 rounded-full overflow-hidden relative shadow-inner">
-                  <motion.div 
-                    className="absolute top-0 left-0 bottom-0"
-                    style={{ 
-                      width: `${comboTimer}%`,
-                      backgroundColor: activeTier.color,
-                    }}
-                    transition={{ duration: 0.05, ease: "linear" }}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* RIGHT PANEL: GLOBAL METRICS */}
-        <div className="w-80 flex flex-col gap-4 pointer-events-auto">
-          
+        {/* TOP LEFT: GLOBAL METRICS */}
+        <div className="flex flex-col gap-4 pointer-events-auto">
           <MetricCard 
             title="Real-Time Velocity" 
             value={currentRPM} 
@@ -605,32 +556,76 @@ export default function Home() {
               small
             />
           </div>
+        </div>
 
-          <div className="bg-card/70 backdrop-blur-xl border border-border shadow-xl rounded-2xl p-5 mt-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-              <Trophy size={14} /> Session Peaks
-            </h3>
-            
-            <div className="flex flex-col gap-4">
-              <div>
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Velocity</div>
-                <div className="font-black text-2xl">{peakRPM} <span className="text-sm font-bold text-muted-foreground">RPM</span></div>
+        {/* MIDDLE LEFT: ACTIVE COMBO */}
+        <AnimatePresence mode="popLayout">
+          {combo > 0 && (
+            <motion.div
+              key="combo-sidebar"
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="bg-card/70 backdrop-blur-xl border border-border shadow-2xl rounded-3xl p-6 flex flex-col items-start relative overflow-hidden"
+            >
+              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundColor: activeTier.color }} />
+              
+              <div className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">
+                Current Streak
               </div>
               
-              <div>
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Best Streak</div>
-                <div className="font-black text-2xl flex items-baseline gap-2">
-                  {maxCombo} <span className="text-sm font-bold text-muted-foreground">x</span>
-                </div>
-                {maxTierIdx > 0 && (
-                  <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: TIERS[maxTierIdx].color }}>
-                    Tier: {TIERS[maxTierIdx].name}
-                  </div>
-                )}
+              <motion.div 
+                key={combo}
+                initial={{ scale: 1.05 }}
+                animate={{ scale: 1 }}
+                className="font-black text-7xl tracking-tighter leading-none mb-2"
+                style={{ color: activeTier.color }}
+              >
+                {combo}<span className="text-3xl text-muted-foreground ml-1">x</span>
+              </motion.div>
+
+              <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-sm mb-6" style={{ color: activeTier.color }}>
+                <Flame size={16} /> {activeTier.name} ({activeTier.multiplier}x)
               </div>
+
+              <div className="w-full h-3 bg-muted/50 rounded-full overflow-hidden relative shadow-inner">
+                <motion.div 
+                  className="absolute top-0 left-0 bottom-0"
+                  style={{ 
+                    width: `${comboTimer}%`,
+                    backgroundColor: activeTier.color,
+                  }}
+                  transition={{ duration: 0.05, ease: "linear" }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* BOTTOM LEFT: SESSION PEAKS */}
+        <div className="bg-card/70 backdrop-blur-xl border border-border shadow-xl rounded-2xl p-5 mt-auto mb-12 pointer-events-auto">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
+            <Trophy size={14} /> Session Peaks
+          </h3>
+          
+          <div className="flex justify-between items-end gap-4">
+            <div>
+              <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Velocity</div>
+              <div className="font-black text-2xl">{peakRPM} <span className="text-sm font-bold text-muted-foreground">RPM</span></div>
+            </div>
+            
+            <div className="text-right">
+              <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Best Streak</div>
+              <div className="font-black text-2xl flex items-baseline gap-2 justify-end">
+                {maxCombo} <span className="text-sm font-bold text-muted-foreground">x</span>
+              </div>
+              {maxTierIdx > 0 && (
+                <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: TIERS[maxTierIdx].color }}>
+                  {TIERS[maxTierIdx].name}
+                </div>
+              )}
             </div>
           </div>
-
         </div>
 
       </div>
@@ -646,7 +641,6 @@ export default function Home() {
   );
 }
 
-// Sub-component for clean metric cards
 function MetricCard({ title, value, suffix, icon, glow, small }: { title: string, value: string | number, suffix?: string, icon?: React.ReactNode, glow?: string, small?: boolean }) {
   return (
     <div className={`bg-card/70 backdrop-blur-xl border border-border shadow-xl rounded-2xl ${small ? 'p-4' : 'p-6'} flex flex-col relative overflow-hidden`}>
